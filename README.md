@@ -1,76 +1,70 @@
 # UV Collection Switcher
 
-Blender addon that automates collection visibility and UV map activation for texture baking pipelines — one click instead of manual switching before every bake.
+Blender addon for texture baking workflows where one base mesh gets baked against different swappable overlays — one click instead of manually toggling collections and UV maps before every bake.
 
-## Problem
+## The Problem
 
-A common baking workflow: one main mesh, baked against different combinations of mask meshes. Before each bake you need to:
+Concrete use case: eyewear visualization. The base collection is a glasses frame (`Glasses Frame Low-poly`). The secondary collections are decorative front masks — each one snaps over the frame and changes the look completely. To bake a specific frame+mask combination you need:
 
-1. Exclude irrelevant collections from the view layer
-2. Include only the right collections
-3. Activate the matching UV map on the main mesh
+1. The right collections visible in the viewport
+2. The matching UV map active on every mesh
+3. All other collections excluded so they don't interfere
 
-Doing this by hand before every bake is slow and easy to get wrong.
+Doing this by hand across 8+ variants is slow and error-prone.
 
-## Solution
+## The Solution
 
-Pick two collections from dropdowns → press **Activate**. The addon excludes everything else, includes your selection, and activates the matching UV map automatically.
+Open `N → UV Switcher`, pick your main and secondary collection, press **Activate**. The addon does the rest.
 
 ## Features
 
-- Two collection dropdowns (main + mask/secondary)
-- **UV Preview** — shows which UV map will be activated *before* you press the button
-- **Activate** — excludes all other collections, includes selected ones, activates matching UV
-- **Activate All / Disable All** — quickly toggle all collection visibility
-- Error feedback when no matching UV map is found
-- Compatible with SimpleBake (run baking manually after activation)
-- Undo support
+### Add UV Maps
+Walks every collection in the scene and creates a UV map on each mesh named after that collection. The main (base) collection gets UV maps for every other collection too — its meshes participate in all bake combinations. Skips maps that already exist, so it's safe to re-run when new collections are added.
+
+### Activate
+Given a selected main + secondary collection pair:
+1. Collects all meshes from both collections while they're still accessible
+2. Sets the UV map named after the secondary collection as active (`active` + `active_render`) on every mesh
+3. Excludes all other collections from the view layer
+4. Selects all meshes from both collections and sets the active object
+
+### Activate All / Disable All
+Bulk-toggle `exclude` on all collections in the view layer — useful for resetting state before a new bake round.
+
+### UV Preview
+Before you press Activate, the panel shows which UV map will be activated and whether it exists on the active object.
 
 ## Installation
 
 1. Download `uv_collection_switcher.py`
 2. In Blender: **Edit → Preferences → Add-ons → Install**
-3. Select the downloaded `.py` file
+3. Select the `.py` file
 4. Enable **UV Collection Switcher** by checking its box
 
 ## Usage
 
-Open **View3D → Sidebar (N key) → UV Switcher** tab.
+Open **View3D → Sidebar (N) → UV Switcher**.
 
-1. Choose your **Main Collection** from the first dropdown
-2. Choose the **2nd Collection** (mask) from the second dropdown
-3. The preview box shows which UV map will be activated
-4. Press **Activate**
-5. Run your bake (e.g., via SimpleBake)
+1. Press **Add UV Maps** to generate named UV maps across all collections (do this once, or re-run after adding new collections)
+2. Choose your **Main Collection** from the first dropdown
+3. Choose the **2nd Collection** from the second dropdown
+4. Check the UV preview box — it shows the target UV and whether it exists on the active mesh
+5. Press **Activate**
+6. Run your bake (e.g., via SimpleBake)
 
-### UV Map Naming Convention
+### UV Map Naming
 
-UV matching uses case-insensitive substring search. If a collection is named `BrickWall_Mask`,
-any UV map whose name contains `brickwall_mask` (or vice versa) will match.
-
-**Example:**
-
-| Collection name | UV map name      | Match? |
-|-----------------|------------------|--------|
-| `Wall`          | `UV_Wall_Detail` | ✓      |
-| `Wall`          | `UV_Floor`       | ✗      |
-| `Mask_AO`       | `ao_mask_01`     | ✓      |
-
-### Utility Buttons
-
-- **Activate All Collections** — re-include all collections (undo exclusions)
-- **Disable All Collections** — exclude all collections from the view layer
+UV maps must be named exactly after their collection. `Add UV Maps` creates them with the correct names automatically. If you rename collections afterwards, re-run `Add UV Maps`.
 
 ## Requirements
 
 - Blender 3.0 or newer
-- Python 3.x (bundled with Blender)
+- No external dependencies — pure Python, `bpy` only
 
-## Planned
+## Works Alongside
 
-- Auto-create missing UV maps on meshes in the main collection, named after mask collections
-- UVPackmaster3 integration
+SimpleBake — the addon sets up collection visibility and active UV maps; baking is triggered manually.
 
 ## Author
 
-Pavel Kruhlei — v1.0.0
+Pavel Kruhlei — v1.2.2
