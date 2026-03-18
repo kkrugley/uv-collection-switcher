@@ -18,8 +18,11 @@ Open `N → UV Switcher`, pick your main and secondary collection, press **Activ
 
 ## Features
 
-### Add UV Maps
-Walks every collection in the scene and creates a UV map on each mesh named after that collection. The main (base) collection gets UV maps for every other collection too — its meshes participate in all bake combinations. Skips maps that already exist, so it's safe to re-run when new collections are added.
+### Add UVs
+Creates a UV map on each mesh in the selected collections, named after the secondary collection. The main collection gets a UV map named after the secondary collection; the secondary collection gets a UV map named after itself. Skips maps that already exist, so it's safe to re-run.
+
+### Remove UVs
+Removes UV maps named after the selected collections from all meshes in those collections. The inverse of **Add UVs** — mirrors the same naming logic, so it only removes what **Add UVs** would have created for the current selection.
 
 ### Activate
 Given a selected main + secondary collection pair:
@@ -45,7 +48,7 @@ Before you press Activate, the panel shows which UV map will be activated and wh
 
 Open **View3D → Sidebar (N) → UV Switcher**.
 
-1. Press **Add UV Maps** to generate named UV maps across all collections (do this once, or re-run after adding new collections)
+1. Press **Add UVs** to generate named UV maps for the selected collections (do this once per collection pair, or re-run after adding new collections)
 2. Choose your **Main Collection** from the first dropdown
 3. Choose the **2nd Collection** from the second dropdown
 4. Check the UV preview box — it shows the target UV and whether it exists on the active mesh
@@ -60,11 +63,3 @@ UV maps must be named exactly after their collection. `Add UV Maps` creates them
 
 - Blender 3.0 or newer
 - No external dependencies — pure Python, `bpy` only
-
-## Works Alongside
-
-SimpleBake — the addon sets up collection visibility and active UV maps; baking is triggered manually.
-
-## Author
-
-Pavel Kruhlei — v1.2.2
