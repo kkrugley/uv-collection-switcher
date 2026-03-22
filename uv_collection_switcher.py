@@ -291,11 +291,6 @@ class UVS_PT_MainPanel(Panel):
         props = context.scene.uvs_props
         obj = context.active_object
 
-        # ── Add UV Maps ───────────────────────────────────────────────────
-        layout.operator("uvs.add_uv_maps", icon='ADD')
-
-        layout.separator()
-
         # ── Main collection ───────────────────────────────────────────────
         layout.label(text="Main collection:", icon='OUTLINER_COLLECTION')
         layout.prop(props, "main_collection", text="")
@@ -305,6 +300,11 @@ class UVS_PT_MainPanel(Panel):
         # ── 2nd collection ────────────────────────────────────────────────
         layout.label(text="2nd collection:", icon='OUTLINER_COLLECTION')
         layout.prop(props, "second_collection", text="")
+
+        layout.separator()
+
+        # ── Add UV Maps ───────────────────────────────────────────────────
+        layout.operator("uvs.add_uv_maps", icon='ADD')
 
         layout.separator()
 
