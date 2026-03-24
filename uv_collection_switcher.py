@@ -1,10 +1,10 @@
 bl_info = {
-    "name": "UV Collection Switcher",
+    "name": "Collection Switcher",
     "author": "Pavel Kruhlei",
-    "version": (2, 0, 0),
+    "version": (3, 0, 0),
     "blender": (3, 0, 0),
-    "location": "View3D > Sidebar > UV Switcher",
-    "description": "Select collections, activate matching UV map and exclude the rest from view layer",
+    "location": "View3D > Sidebar > Collection Switcher",
+    "description": "Select collections and exclude the rest from view layer",
     "category": "Object",
 }
 
@@ -69,13 +69,6 @@ def get_all_meshes_in_collection_recursive(col):
     return meshes
 
 
-def find_matching_uv(obj, col_name: str):
-    """Find UV map on obj whose name exactly matches col_name."""
-    if not obj or obj.type != "MESH":
-        return None
-    return obj.data.uv_layers.get(col_name)
-
-
 # ---------------------------------------------------------------------------
 # Properties
 # ---------------------------------------------------------------------------
@@ -92,10 +85,6 @@ class UVSProps(PropertyGroup):
     )
     last_result: StringProperty(default="")
     last_error: StringProperty(default="")
-    show_uv_list: bpy.props.BoolProperty(
-        name="Show UV List",
-        default=False,
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -103,52 +92,8 @@ class UVSProps(PropertyGroup):
 # ---------------------------------------------------------------------------
 
 
-class UVS_OT_AddUVMaps(Operator):
-    """Add UV maps to every mesh in every collection.\nEach collection's meshes get only their own UV map.\nEach UV map is named after its collection."""
-
-    bl_idname = "uvs.add_uv_maps"
-    bl_label = "Add UV Maps"
-    bl_options = {"REGISTER", "UNDO"}
-
-    def execute(self, context):
-        created_uvs = []
-        skipped_uvs = []
-
-        all_collections = list(bpy.data.collections)
-
-        for col in all_collections:
-            meshes = get_all_meshes_in_collection_recursive(col)
-            if not meshes:
-                continue
-
-            uv_name = col.name
-
-            for obj in meshes:
-                if obj.data.uv_layers.get(uv_name) is None:
-                    obj.data.uv_layers.new(name=uv_name)
-                    if uv_name not in created_uvs:
-                        created_uvs.append(uv_name)
-                else:
-                    if uv_name not in skipped_uvs and uv_name not in created_uvs:
-                        skipped_uvs.append(uv_name)
-
-        created_str = ", ".join(sorted(created_uvs)) if created_uvs else "none"
-        skipped_str = ", ".join(sorted(skipped_uvs)) if skipped_uvs else "none"
-
-        props = context.scene.uvs_props
-        props.last_result = f"Created: {created_str}"
-        props.last_error = ""
-
-        if created_uvs:
-            self.report({"INFO"}, f"Added UVs: {created_str}")
-        if skipped_uvs:
-            self.report({"INFO"}, f"Already existed: {skipped_str}")
-
-        return {"FINISHED"}
-
-
 class UVS_OT_Activate(Operator):
-    """Exclude all collections except selected ones,\nactivate matching UV map and select all meshes"""
+    """Exclude all collections except selected ones and select all meshes"""
 
     bl_idname = "uvs.activate"
     bl_label = "Activate"
@@ -171,11 +116,8 @@ class UVS_OT_Activate(Operator):
         if second_name != "NONE":
             selected_names.add(second_name)
 
-        uv_target = second_name if second_name != "NONE" else main_name
-
         main_meshes = []
         second_meshes = []
-        main_uv_added = False
 
         if main_name != "NONE":
             main_col = bpy.data.collections.get(main_name)
@@ -188,30 +130,6 @@ class UVS_OT_Activate(Operator):
                 second_meshes = get_all_meshes_in_collection_recursive(second_col)
 
         all_meshes = main_meshes + second_meshes
-
-        for obj in main_meshes:
-            while obj.data.uv_layers:
-                obj.data.uv_layers.remove(obj.data.uv_layers[0])
-
-        for obj in main_meshes:
-            if second_name != "NONE":
-                if obj.data.uv_layers.get(uv_target) is None:
-                    obj.data.uv_layers.new(name=uv_target)
-                uv = obj.data.uv_layers.get(uv_target)
-                if uv:
-                    for layer in obj.data.uv_layers:
-                        layer.active_render = False
-                    obj.data.uv_layers.active = uv
-                    uv.active_render = True
-                    main_uv_added = True
-
-        for obj in second_meshes:
-            uv = find_matching_uv(obj, uv_target)
-            if uv:
-                for layer in obj.data.uv_layers:
-                    layer.active_render = False
-                obj.data.uv_layers.active = uv
-                uv.active_render = True
 
         set_all_collections_excluded(context, True)
         for name in selected_names:
@@ -227,16 +145,11 @@ class UVS_OT_Activate(Operator):
         if first_mesh:
             context.view_layer.objects.active = first_mesh
 
-        if main_uv_added:
-            props.last_result = uv_target
-            props.last_error = ""
-            self.report(
-                {"INFO"}, f"Active UV: {uv_target} | Selected {len(all_meshes)} meshes"
-            )
-        else:
-            props.last_error = f'No UV "{uv_target}" found on meshes'
-            props.last_result = ""
-            self.report({"WARNING"}, props.last_error)
+        props.last_result = main_name if main_name != "NONE" else second_name
+        props.last_error = ""
+        self.report(
+            {"INFO"}, f"Active: {props.last_result} | Selected {len(all_meshes)} meshes"
+        )
 
         return {"FINISHED"}
 
@@ -271,35 +184,21 @@ class UVS_OT_DisableAll(Operator):
         return {"FINISHED"}
 
 
-class UVS_OT_ToggleUVList(Operator):
-    """Show or hide the list of added UV maps"""
+class UVS_OT_DeleteAllUVMaps(Operator):
+    """Delete all UV maps from all meshes"""
 
-    bl_idname = "uvs.toggle_uv_list"
-    bl_label = "Toggle UV List"
-
-    def execute(self, context):
-        context.scene.uvs_props.show_uv_list = not context.scene.uvs_props.show_uv_list
-        return {"FINISHED"}
-
-
-class UVS_OT_DeleteUVMap(Operator):
-    """Delete this UV map from all meshes in all collections"""
-
-    bl_idname = "uvs.delete_uv_map"
-    bl_label = "Delete UV Map"
+    bl_idname = "uvs.delete_all_uv_maps"
+    bl_label = "Delete All UV Maps"
     bl_options = {"REGISTER", "UNDO"}
-
-    uv_name: StringProperty()
 
     def execute(self, context):
         removed = 0
-        for col in bpy.data.collections:
-            for obj in get_all_meshes_in_collection_recursive(col):
-                uv = obj.data.uv_layers.get(self.uv_name)
-                if uv:
-                    obj.data.uv_layers.remove(uv)
+        for obj in bpy.data.objects:
+            if obj.type == "MESH":
+                while obj.data.uv_layers:
+                    obj.data.uv_layers.remove(obj.data.uv_layers[0])
                     removed += 1
-        self.report({"INFO"}, f'Removed "{self.uv_name}" from {removed} meshes')
+        self.report({"INFO"}, f"Removed {removed} UV maps")
         return {"FINISHED"}
 
 
@@ -309,65 +208,30 @@ class UVS_OT_DeleteUVMap(Operator):
 
 
 class UVS_PT_MainPanel(Panel):
-    bl_label = "UV Selector"
+    bl_label = "Collection Switcher"
     bl_idname = "UVS_PT_main"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
-    bl_category = "UV Switcher"
+    bl_category = "Collection Switcher"
 
     def draw(self, context):
         layout = self.layout
         props = context.scene.uvs_props
-        obj = context.active_object
 
-        # ── Add UVs for all Collections ────────────────────────────────────
-        layout.operator(
-            "uvs.add_uv_maps", icon="ADD", text="Add UVs for all Collections"
-        )
-
-        layout.separator()
-
-        # ── Main collection ───────────────────────────────────────────────
         layout.label(text="Main collection:", icon="OUTLINER_COLLECTION")
         layout.prop(props, "main_collection", text="")
 
         layout.separator()
 
-        # ── 2nd collection ────────────────────────────────────────────────
         layout.label(text="2nd collection:", icon="OUTLINER_COLLECTION")
         layout.prop(props, "second_collection", text="")
 
         layout.separator()
 
-        # ── UV preview ────────────────────────────────────────────────────
-        uv_target = (
-            props.second_collection
-            if props.second_collection != "NONE"
-            else props.main_collection
-        )
-        box = layout.box()
-        box.label(text="UV to activate:", icon="GROUP_UVS")
-        if uv_target and uv_target != "NONE":
-            # Check if this UV exists on active object
-            if obj and obj.type == "MESH":
-                exists = obj.data.uv_layers.get(uv_target) is not None
-                icon = "CHECKMARK" if exists else "QUESTION"
-                box.label(text=uv_target, icon=icon)
-                if not exists:
-                    box.label(text="Not found on active object", icon="INFO")
-            else:
-                box.label(text=uv_target)
-        else:
-            box.label(text="Select a collection", icon="INFO")
-
-        layout.separator()
-
-        # ── Activate button ───────────────────────────────────────────────
         row = layout.row()
         row.scale_y = 1.8
         row.operator("uvs.activate", icon="PLAY")
 
-        # ── Feedback ──────────────────────────────────────────────────────
         if props.last_error:
             row2 = layout.row()
             row2.alert = True
@@ -377,38 +241,13 @@ class UVS_PT_MainPanel(Panel):
 
         layout.separator()
 
-        # ── Utility ───────────────────────────────────────────────────────
         row = layout.row(align=True)
         row.operator("uvs.activate_all", icon="HIDE_OFF")
         row.operator("uvs.disable_all", icon="HIDE_ON")
 
         layout.separator()
 
-        # ── UV list toggle ────────────────────────────────────────────────
-        list_label = (
-            "Hide list of added UVs" if props.show_uv_list else "Show list of added UVs"
-        )
-        list_icon = "TRIA_DOWN" if props.show_uv_list else "TRIA_RIGHT"
-        row = layout.row()
-        row.operator("uvs.toggle_uv_list", text=list_label, icon=list_icon)
-
-        if props.show_uv_list:
-            # Collect unique UV names across all meshes in all collections
-            uv_names = set()
-            for col in bpy.data.collections:
-                for obj in get_all_meshes_in_collection_recursive(col):
-                    for uv in obj.data.uv_layers:
-                        uv_names.add(uv.name)
-
-            box = layout.box()
-            if uv_names:
-                for name in sorted(uv_names):
-                    row = box.row(align=True)
-                    row.label(text=name, icon="GROUP_UVS")
-                    op = row.operator("uvs.delete_uv_map", text="", icon="X")
-                    op.uv_name = name
-            else:
-                box.label(text="No UV maps found", icon="INFO")
+        layout.operator("uvs.delete_all_uv_maps", icon="X", text="Delete All UV Maps")
 
 
 # ---------------------------------------------------------------------------
@@ -417,12 +256,10 @@ class UVS_PT_MainPanel(Panel):
 
 classes = (
     UVSProps,
-    UVS_OT_AddUVMaps,
     UVS_OT_Activate,
     UVS_OT_ActivateAll,
     UVS_OT_DisableAll,
-    UVS_OT_ToggleUVList,
-    UVS_OT_DeleteUVMap,
+    UVS_OT_DeleteAllUVMaps,
     UVS_PT_MainPanel,
 )
 
